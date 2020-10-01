@@ -1,6 +1,6 @@
 # CODAS LAB EXPERIMENT
 
-This API is in beta version and part of a game built for ASIST project using FastAPI Web-Framework, Redis and Firebase DB.
+This API is in beta version and part of a game built for ASIST project using FastAPI Web-Framework, Redis and Firebase DB. The API works with the Client available at [ASIST-Client](https://github.com/CoDaS-Lab/ASIST-Client)
 
 ## Requirements:
 - Redis 6.0.8+ installed
