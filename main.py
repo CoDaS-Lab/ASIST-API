@@ -59,7 +59,7 @@ async def wait_handler(sid, message):
     )
     if n_player < player_limit:
         await sio.emit("wait_data",
-                       {"rm_id": room_id, "idx": n_player}, room=sid)
+                       {"rm_id": room_id, "p_id": n_player}, room=sid)
         r.incrby("n_player", 1)
         if n_player + 1 == player_limit:
             room_id = sha1((str(random()) +
