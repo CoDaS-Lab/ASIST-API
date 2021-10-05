@@ -1,15 +1,17 @@
-import os
-import socketio
-import uvicorn
-import redis
 import asyncio
 import concurrent.futures
-from random import random
+import datetime
+import os
 from hashlib import sha1
-from fastapi import FastAPI
-from rich.console import Console
-from firebase_admin import db, credentials, initialize_app
+from random import random
+from urllib.parse import urlparse
 
+import redis
+import socketio
+import uvicorn
+from fastapi import FastAPI
+from firebase_admin import credentials, db, initialize_app
+from rich.console import Console
 
 ping_freq, ping_wait = 25, 60
 player_limit = 1
@@ -28,21 +30,35 @@ sio = socketio.AsyncServer(
 socket_app = socketio.ASGIApp(sio)
 app.mount("/", socket_app)
 
+
 # r = redis.StrictRedis(host="localhost", db=0, decode_responses=True)
-r = redis.from_url(os.environ.get("REDIS_URL"))
+url = urlparse(os.environ.get("REDIS_URL"))
+r = redis.Redis(
+    host=url.hostname,
+    port=url.port,
+    username=url.username,
+    password=url.password,
+    ssl=True,
+    ssl_cert_reqs=None,
+)
+
+
 room_id = sha1((str(random()) + str(random())).encode("utf8")).hexdigest()
 r.set("n_player", 0)
 r.set("room_id", room_id)
 
 executor = concurrent.futures.ThreadPoolExecutor(max_workers=20)
 
-cred = credentials.Certificate(
-    os.environ.get("GOOGLE_APPLICATION_CREDENTIALS"))
+cred = credentials.Certificate(os.environ.get("GOOGLE_APPLICATION_CREDENTIALS"))
 initialize_app(cred, {"databaseURL": os.environ.get("FIREBASE_URL")})
+# cred = credentials.Certificate("asist-b70d8-firebase-adminsdk-vsrf8-1de25e5795.json")
+# initialize_app(cred, {"databaseURL": "https://asist-b70d8.firebaseio.com/"})
+
 ref = db.reference("/")
 
 
 def save_data(sid, message):
+    message["socket_id"] = sid
     ref.child(sid).push().set(str(message))
 
 
@@ -51,37 +67,52 @@ async def wait_handler(sid, message):
     console.print(message, sid, style="bold blue")
     loop = asyncio.get_event_loop()
     loop.run_in_executor(executor, save_data, sid, message)
-    n_player = int(r.get("n_player"))
-    room_id = r.get("room_id")
+    room_id = r.get("room_id").decode()
     console.print(
-        "Player joining wait. current player count is",
-        n_player, style="bold blue"
+        "Player joining wait. current player count is", int(r.get("n_player")), style="bold blue"
     )
-    if n_player < player_limit:
-        await sio.emit("wait_data",
-                       {"rm_id": room_id, "idx": n_player}, room=sid)
-        r.incrby("n_player", 1)
-        if n_player + 1 == player_limit:
-            room_id = sha1((str(random()) +
-                            str(random())).encode("utf8")).hexdigest()
-            r.set("room_id", room_id)
-            console.print(
-                "Starting game. player count in waiting room is.",
-                n_player + 1,
-                style="bold blue",
-            )
-            await sio.emit("start_game", {"msg_code": 1}, room=sid)
-            r.set("n_player", 0)
+    r.set(sid, room_id)
+    sio.enter_room(sid, room_id)
+    await sio.emit("wait_data", {"rm_id": room_id, "p_id": int(r.get("n_player"))}, room=sid)
+    r.incrby("n_player", 1)
+    r.lpush(room_id, sid)
+    if int(r.get("n_player")) == player_limit:
+        players_list = r.lrange(room_id, 0, -1)
+        r.set("room_id", sha1((str(random()) + str(random())).encode("utf8")).hexdigest())
+        console.print(
+            "Starting game. player count in waiting room is.",
+            int(r.get("n_player")),
+            room_id,
+            style="bold blue",
+        )
+        r.set("n_player", 0)
+        await sio.emit("start_game", {"players_list": players_list}, room=room_id)
+
+
+@sio.on("game_info")
+async def game_info_handler(sid, message):
+    console.print(message, sid, style="bold blue")
+    loop = asyncio.get_event_loop()
+    loop.run_in_executor(executor, save_data, sid, message)
 
 
 @sio.on("start_game")
 async def start_game_handler(sid, message):
+    console.print(message, sid, style="bold blue")
     loop = asyncio.get_event_loop()
     loop.run_in_executor(executor, save_data, sid, message)
 
 
 @sio.on("end_game")
 async def end_game_handler(sid, message):
+    console.print(message, sid, style="bold blue")
+    loop = asyncio.get_event_loop()
+    loop.run_in_executor(executor, save_data, sid, message)
+
+
+@sio.on("feedback")
+async def end_game_handler(sid, message):
+    console.print(message, sid, style="bold blue")
     loop = asyncio.get_event_loop()
     loop.run_in_executor(executor, save_data, sid, message)
 
@@ -89,7 +120,12 @@ async def end_game_handler(sid, message):
 @sio.on("player_move")
 async def player_movement_handler(sid, message):
     console.print(message, sid, style="bold blue")
-    await sio.emit("player_move", message, room=sid)
+    await sio.emit("player_move_success", message, room=message["rm_id"])
+
+
+@sio.on("player_move_displayed")
+async def player_movement_displayed_handler(sid, message):
+    console.print(message, sid, style="bold blue")
     loop = asyncio.get_event_loop()
     loop.run_in_executor(executor, save_data, sid, message)
 
@@ -111,12 +147,29 @@ async def rescue_success_handler(sid, message):
 @sio.on("connect")
 async def connect_handler(sid, environ):
     console.print("CONNECTED", sid, style="bold magenta")
-    await sio.emit("welcome", {"data": "Connected"}, room=sid)
+    await sio.emit("welcome", {"data": "Connected", "socket_id": sid}, room=sid)
+    loop = asyncio.get_event_loop()
+    loop.run_in_executor(
+        executor, save_data, sid, {"event": "connect", "time": str(datetime.datetime.utcnow())}
+    )
+
+
+@sio.on("game_config")
+async def game_config_handler(sid, message):
+    console.print("GAME CONFIG", sid, style="bold red")
+    loop = asyncio.get_event_loop()
+    loop.run_in_executor(executor, save_data, sid, message)
 
 
 @sio.on("disconnect")
 async def disconnect_handler(sid):
     console.print("DISCONNECTED", sid, style="bold red")
+    loop = asyncio.get_event_loop()
+    room_id = r.get(sid).decode()
+    sio.leave_room(sid, room_id)
+    loop.run_in_executor(
+        executor, save_data, sid, {"event": "disconnect", "time": str(datetime.datetime.utcnow())}
+    )
 
 
 if __name__ == "__main__":
