@@ -4,7 +4,7 @@ This API is in beta version and part of a game built for ASIST project using Fas
 
 ## Requirements:
 - Redis 6.0.8+ installed
-- Python 3.6.4+ installed
+- Python 3.9.7+ installed
 - FireBase Realtime Database url and authentication credentials file in json format.
 
 ## For Running Locally
