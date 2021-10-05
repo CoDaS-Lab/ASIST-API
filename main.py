@@ -2,6 +2,7 @@ import asyncio
 import concurrent.futures
 import datetime
 import os
+import sys
 from hashlib import sha1
 from random import random
 from urllib.parse import urlparse
@@ -30,18 +31,20 @@ sio = socketio.AsyncServer(
 socket_app = socketio.ASGIApp(sio)
 app.mount("/", socket_app)
 
+console.print(f"ARGS PASSED: {sys.argv}", style="dark_orange3")
 
-# r = redis.StrictRedis(host="localhost", db=0, decode_responses=True)
-url = urlparse(os.environ.get("REDIS_URL"))
-r = redis.Redis(
-    host=url.hostname,
-    port=url.port,
-    username=url.username,
-    password=url.password,
-    ssl=True,
-    ssl_cert_reqs=None,
-)
-
+if sys.argv[1] == "local":
+    r = redis.Redis(host="localhost", port=6379, db=0)
+else:
+    url = urlparse(os.environ.get("REDIS_URL"))
+    r = redis.Redis(
+        host=url.hostname,
+        port=url.port,
+        username=url.username,
+        password=url.password,
+        ssl=True,
+        ssl_cert_reqs=None,
+    )
 
 room_id = sha1((str(random()) + str(random())).encode("utf8")).hexdigest()
 r.set("n_player", 0)
@@ -49,11 +52,8 @@ r.set("room_id", room_id)
 
 executor = concurrent.futures.ThreadPoolExecutor(max_workers=20)
 
-cred = credentials.Certificate(os.environ.get("GOOGLE_APPLICATION_CREDENTIALS"))
-initialize_app(cred, {"databaseURL": os.environ.get("FIREBASE_URL")})
-# cred = credentials.Certificate("asist-b70d8-firebase-adminsdk-vsrf8-1de25e5795.json")
-# initialize_app(cred, {"databaseURL": "https://asist-b70d8.firebaseio.com/"})
-
+cred = credentials.Certificate(eval(os.environ["FIREBASE_AUTH"]))
+initialize_app(cred, {"databaseURL": os.environ["FIREBASE_URL"]})
 ref = db.reference("/")
 
 
