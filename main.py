@@ -86,7 +86,9 @@ async def wait_handler(sid, message):
             style="bold blue",
         )
         r.set("n_player", 0)
-        await sio.emit("start_game", {"players_list": players_list}, room=room_id)
+        await sio.emit(
+            "start_game", {"players_list": players_list, "rm_id": room_id}, room=room_id
+        )
 
 
 @sio.on("game_info")
