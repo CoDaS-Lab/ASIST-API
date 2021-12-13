@@ -1,6 +1,7 @@
 import asyncio
 import concurrent.futures
 import datetime
+import json
 import os
 import sys
 from hashlib import sha1
@@ -52,7 +53,7 @@ r.set("room_id", room_id)
 
 executor = concurrent.futures.ThreadPoolExecutor(max_workers=20)
 
-cred = credentials.Certificate(os.environ["FIREBASE_AUTH"])
+cred = credentials.Certificate(json.loads(os.environ["FIREBASE_AUTH"]))
 initialize_app(cred, {"databaseURL": os.environ["FIREBASE_URL"]})
 ref = db.reference("/")
 
