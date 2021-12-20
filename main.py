@@ -1,7 +1,6 @@
 import asyncio
 import concurrent.futures
 import datetime
-import json
 import os
 import sys
 from hashlib import sha1
@@ -16,7 +15,7 @@ from firebase_admin import credentials, db, initialize_app
 from rich.console import Console
 
 ping_freq, ping_wait = 25, 60
-player_limit = 2
+player_limit = 1
 
 
 console = Console()
@@ -53,7 +52,7 @@ r.set("room_id", room_id)
 
 executor = concurrent.futures.ThreadPoolExecutor(max_workers=20)
 
-cred = credentials.Certificate(json.loads(os.environ["FIREBASE_AUTH"]))
+cred = credentials.Certificate(eval(os.environ["FIREBASE_AUTH"]))
 initialize_app(cred, {"databaseURL": os.environ["FIREBASE_URL"]})
 ref = db.reference("/")
 
