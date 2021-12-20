@@ -139,8 +139,14 @@ async def rescue_attempt_handler(sid, message):
     loop.run_in_executor(executor, save_data, sid, message)
 
 
-@sio.on("rescue_success")
-async def rescue_success_handler(sid, message):
+@sio.on("rescue")
+async def rescue_handler(sid, message):
+    console.print(message, sid, style="bold blue")
+    await sio.emit("rescue_success", message, room=message["rm_id"])
+
+
+@sio.on("rescue_displayed")
+async def rescue_displayed_handler(sid, message):
     console.print(message, sid, style="bold blue")
     loop = asyncio.get_event_loop()
     loop.run_in_executor(executor, save_data, sid, message)
