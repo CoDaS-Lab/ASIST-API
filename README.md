@@ -22,4 +22,4 @@ This API is in beta version and part of a game built for ASIST project using Fas
 4. Start Redis server
    - `redis-server`
 5. Start API server and it should be should be available at `http://localhost:5000`
-   - `python main local.py`
+   - `python main.py local`
