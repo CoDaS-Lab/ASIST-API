@@ -151,6 +151,19 @@ async def rescue_displayed_handler(sid, message):
     loop = asyncio.get_event_loop()
     loop.run_in_executor(executor, save_data, sid, message)
 
+@sio.on("ask_next_room")
+async def ask_next_room_handler(sid, message):
+    console.print(message, sid, style="bold blue")
+    loop = asyncio.get_event_loop()
+    loop.run_in_executor(executor, save_data, sid, message)
+    await sio.emit("ask_next_room_success", message, room=message["rm_id"])
+
+@sio.on("choose_next_room")
+async def choose_next_room_handler(sid, message):
+    console.print(message, sid, style="bold blue")
+    loop = asyncio.get_event_loop()
+    loop.run_in_executor(executor, save_data, sid, message)
+    await sio.emit("choose_next_room_success", message, room=message["rm_id"])
 
 @sio.on("connect")
 async def connect_handler(sid, environ):
